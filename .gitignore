@@ -1,0 +1,8 @@
+.Rproj.user
+.Rbuildignore
+.Rhistory
+.Rapp.history
+vignettes/ms
+remixsiar.Rproj
+data-raw/
+

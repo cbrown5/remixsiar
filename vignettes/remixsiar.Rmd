@@ -1,0 +1,180 @@
+---
+title: "Introduction to remixsiar"
+author: "CJ Brown"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+This package provides helpful functions for evaluating the results of isotope mixing models.  
+Currently it works directly with the packages (`simmr`)[https://github.com/andrewcparnell/simmr].  Many of the functions are not exclusive to `simmr` , however a greater profeciency at R programming would be required to use this package with packages other than `simmr`.  
+
+We also provided very limited support for working with simple models built with  (`mixsiar`)[https://github.com/brianstock/MixSIAR]. See `vignette("remixsiar-mixsiar")` for more guidance. 
+
+## Getting started  
+
+We recommend you read the `simmr` and/or `mixsiar` vignettes by typing `vignette('simmr')` before you start with this package. 
+
+Here we will walk through some examples using `simmr`. 
+
+```{r, message=FALSE}
+library(remixsiar)
+data(gulls_small)
+```  
+
+Next use `simmr` to build the mixing model input and run the mixing model (this may take a few moments).  
+
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 7}
+gulls_small_in <- simmr_load(mixtures=gulls_small$mixes,
+                       source_names=gulls_small$s_names,
+                       source_means=gulls_small$source_means,
+                       source_sds=gulls_small$source_sds)  
+
+plot(gulls_small_in, title = '')
+```  
+
+## Prior sensitivity analysis  
+With small samples sizes the estimates of dietary proportions from Bayesian isotope mixing models may be strongly influenced by their priors. Most models will run with a default prior that is not directly visible to the user. `remixsiar` provides utilities for viewing the prior.  
+
+To generate the parameters for the default prior for the gulls data in `simmr` type: 
+
+```{r}
+prior_gulls <- default_prior(gulls_small_in)  
+prior_gulls 
+```  
+
+The gulls data-set is simulations based on data from [Masello et al. 2013](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0067714#s5)
+
+As you can see it is a series of three means and sds, one for each source.  `simmr` and other newer mixing models use log-ratio transformations to generate posterior samples of dietary proportions. The priors are specified in terms of normal distributions, which are then transformed to dietary proportions for the puproses of estimating isotope mixing in consumers.  
+
+A user might want to view the (latent) priors in terms of proportions. To view the priors for the krill source type: 
+
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 5}
+gpd <- drawpriors(gulls_small_in, prior_gulls)
+plot(density(gpd[,'Krill']), main = 'Krill')
+```  
+
+Notice that the priors are broad, they cover values from 0 to 1, however, they are peaked at lower values. So the priors are weakly informative, not uniniformative as is commonly assumed. In fact, the mean will be 1/number of sources. Priors on proportions have to be informative because there are more ways to sum intermediate numbers to obtain 1 than extreme numbers.  
+
+We can do a visual comparison of prior and posterior distributions using `remixsiar`, but first we need to run the `simmr` model: 
+
+```{r}
+prior_gulls <- default_prior(gulls_small_in)  
+mcmccontrol <- list(iter = 50000, burn = 1000, thin = 10, n.chain = 4)
+```
+
+```{r, echo=FALSE, eval=TRUE}
+data(gulls_out)
+```
+
+
+```{r,eval = FALSE}
+gulls_out <- simmr_mcmc(gulls_small_in, prior.control = prior_gulls, mcmc.control = mcmccontrol)  
+```  
+(for convenience the output from the above model run can be obtained by typing `data(gulls_out)`)
+
+```{r}
+summary(gulls_out)  
+```
+
+Check the `simmr` vignette for guidelines on choosing the mcmccontrol parameters.  
+
+### Plotting priors and posteriors
+
+We can visually compare prior and posterior distributions like this:  
+
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 7}
+xgullssmall <- plot_dists(gulls_small_in, gulls_out, prior_gulls, plotdist = T)  
+xgullssmall  
+```  
+
+This will also return the Hellinger distance statistic on the difference between the *marginal* (ie not accounting for correlations in estimates) prior and posterior. The Hellinger distance statistic provides a metric that measures the difference between two distributions. Values closer to 1 indicate the posterior is increasingly different from the prior. In this case divergence is only moderate, due the small consumer sample size and the broad sd on the sources. See `?plot_dists` for more information.  
+
+There are two ways the Hellinger distance can increase - the marginal posterior can get narrower but retain the same mean as the prior. This would indicate we have more information about a consumer's diet, but that the information agrees with the prior.  
+
+The Hellinger distance could also increase if the mean of the posterior shifts from the prior, indicating that the data do not agree with the prior for a source.   
+
+## Information measures of difference between priors and posterior 
+
+There are a few information measures we describe in the paper for quantifying learning from the data (which will chance the shape of the posterior from the prior). The two statistics used are the Hellinger distance and the Kullback-Leibler divergence. For each of these we can calculate them on the marginal densities of each source, or across the full conditional posterior (which accounts for changes in the correlations between the contributions of sources). See the paper for more details. 
+
+The marginal Hellinger distances (one for each source)
+```{r}
+calchell(list(gulls_small_in, gulls_out))
+```  
+
+The marginal Kullback-Leibler divergences (in bits): 
+```{r}
+calckl(list(gulls_small_in, gulls_out))
+```  
+
+The global Hellinger distance and Kullback-Leibler divergence (one value for each statistic): 
+
+```{r message=FALSE, warning=FALSE}
+calcmkl(list(gulls_small_in, gulls_out))
+```
+
+
+## Evaluating models for bias and precision  
+
+`remixsiar` provides tools for evaluating precision and bias of predictions for consumer isotope ratios. See [Bolker 2008](http://press.princeton.edu/titles/8709.html) for a general guide to evaluation of prediction and bias.  
+For mixing models, bias in predictions of consumer isotope ratios may indicate a misspecified model. For instance, a key source may be missed or trophic fractionation estimates may be too low. We can obtain by statistics by simulating data from the fitted model. For instance try: 
+
+```{r}
+sims_gulls <- simdata(gulls_small_in, gulls_out, fast = T)
+sims_gulls
+```  
+
+Which prints estimates of bias, which are the average deviation of the consumer data from the model predicted mean isotope ratios.  The root mean squared error is a measure of variance, and indicates the average variation about the model predicted mean. 
+
+
+We can visualise bias and variance on an isospace plot 
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 5, fig.height = 6.5}  
+remix_2DPI(sims_gulls, gulls_small_in, ylims = c(6, 18), prob = 0.05)
+```  
+
+Here we see the consumer data fall well within the predictive intervals generated by the model (which are quite broad, due to the relatively large SDs on the source values).  
+
+We can also create plots of residuals on single tracers. For instance, users may be familiar with residuals checks from regression modelling. `remixsiar` can produce similar plots for isotope mixing models: 
+
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 4}
+xresid <- remix_PI(sims_gulls, gulls_small_in, gulls_out)
+```  
+
+We want to see that residuals are evenly, and normally, distributed about their mean values.  A large proportion of positive or negative values would indicate bias. 
+
+We can run a (Bayesian) t-test (using the package `BEST`) to obtain the probability that the mean of the residuals differs from zero: 
+
+```{r, warning=FALSE, message=FALSE, eval = FALSE}
+library(BEST)
+apply(xresid$resid[[1]], 2, BESTmcmc)  
+```  
+
+In this case the 95% credibility intervals on the means for both tracers overlap with zero - compare `HDIlo` and `HDIup` columns for hte parameter `mu` Thus, model bias is not an issue for the gulls data.  
+
+## Further reading  
+
+`remixsiar` package: 
+[Brown et al. In press Oecologia](https://link.springer.com/article/10.1007%2Fs00442-018-4138-y)
+
+Isotope mixing models: 
+
+The `simmr` package, in R type: `vignette('simmr')`
+
+For information about prior sensitivity analysis see (pay-walled):  
+[Berger JO (1985) Statistical Decision Theory and Bayesian Analysis, Second Edition, Springer, New York.](http://www.springer.com/in/book/9780387960982)
+
+General information about model evaluation (pay-walled):  
+[Bolker BM. Ecological models and data in R. Princeton University Press; 2008 Jul 21.](http://press.princeton.edu/titles/8709.html)
+
+Best practices for isotope mixing models (pay-walled): 
+[Phillips DL, Inger R, Bearhop S, Jackson AL, Moore JW, Parnell AC, Semmens BX, Ward EJ. Best practices for use of stable isotope mixing models in food-web studies. Canadian Journal of Zoology. 2014 Aug 27;92(10):823-35.](http://www.nrcresearchpress.com/doi/abs/10.1139/cjz-2014-0127) 
+
+Technical details about isotope mixing models (pay-walled):  
+[Parnell AC, Phillips DL, Bearhop S, Semmens BX, Ward EJ, Moore JW, Jackson AL, Grey J, Kelly DJ, Inger R. Bayesian stable isotope mixing models. Environmetrics. 2013 Sep 1;24(6):387-99.](http://onlinelibrary.wiley.com/doi/10.1002/env.2221/full)  
+
+To read about the real gulls data-set, which the `remixsiar` gulls data-set is based on (open access): 
+[Masello JF, Wikelski M, Voigt CC, Quillfeldt P. Distribution patterns predict individual specialization in the diet of Dolphin Gulls. PLoS One. 2013 Jul 2;8(7):e67714.](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0067714#s5)

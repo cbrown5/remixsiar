@@ -1,0 +1,34 @@
+Package: remixsiar
+Type: Package
+Title: Post-processing of stable isotope mixing models
+Version: 2.0
+Date: 2018-06-05
+Authors@R: c(person("Christopher", "Brown", email = "christo.j.brown@gmail.com",
+  role = c("aut", "cre")),
+  person("Michael", "Brett", role = "ctb"),
+  person("Ben", "Stewart-Koster", role = "ctb"))
+Description: Evaluate posterior estimates of dietary proportions from isotope
+    mixing models. Includes evaluation metrics for information gain from data over
+    priors and simulates sampling of consumers to estimate model bias.
+License: MIT + file LICENSE
+RoxygenNote: 6.0.1
+Depends:
+    BayeSens,
+    rjags,
+    MixSIAR,
+    simmr
+Imports:
+    compositions,
+    dplyr,
+    ellipse,
+    extraDistr, 
+    ggplot2,
+    tidyr,
+    tibble
+Suggests:
+    BEST,
+    knitr,
+    purrr,
+    rmarkdown
+VignetteBuilder: knitr
+URL: https://github.com/cbrown5/remixsiar

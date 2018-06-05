@@ -1,0 +1,106 @@
+---
+title: "Additional model evaluation methods inremixsiar"
+author: "CJ Brown"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+## Additional methods for evaluating mixing models 
+
+Not all the methods we developed are written up in the publication supporting this package (see the paper's ESM). Here are a few of the additional methods that may be useful. 
+
+Here we will walk through them using the gulls data set and `simmr`. 
+
+```{r, message=FALSE}
+library(remixsiar)
+data(gulls_small)
+
+gulls_small_in <- simmr_load(mixtures=gulls_small$mixes,
+                       source_names=gulls_small$s_names,
+                       source_means=gulls_small$source_means,
+                       source_sds=gulls_small$source_sds)  
+
+prior_gulls <- default_prior(gulls_small_in)  
+mcmccontrol <- list(iter = 50000, burn = 1000, thin = 10, n.chain = 4)
+```
+
+```{r, echo=FALSE, eval=TRUE}
+data(gulls_out)
+```
+
+```{r,eval = FALSE}
+gulls_out <- simmr_mcmc(gulls_small_in, prior.control = prior_gulls, mcmc.control = mcmccontrol)  
+```  
+
+### Posterior shrink    
+An alternate method for prior sensitivity analysis is to calculate the 'shrink' of a posterior parameter estimate towards it's maximum likelihood estimate and away from the prior. In contrast to the Hellinger distance, shrink is calculated on a single parameter, rather than across the distribution.  
+
+To obtain maximum likelihood from mixing models we use the data cloning method. See [Lele et al. 2007](http://onlinelibrary.wiley.com/doi/10.1111/j.1461-0248.2007.01047.x/full) for more details on this method.  
+
+The key point is to choose an adequately large cloning number, `K`, where larger values of `K` will give more accurate maximum likelihood estimates, but require more computational time. 
+
+The code below will re-run our gulls `simmr` model with a cloned data-frame (this may take awhile):  
+
+```{r, eval=FALSE}
+K <- 80
+gulls_clone <- simmr_clone(gulls_small_in, K = K, mcmc.control = mcmccontrol, prior.control = prior_gulls)  
+```  
+
+A `simmr` run on the cloned gulls data is also available directly in the `remixsiar` package for convenience:  
+
+```{r}
+data(gulls_clone)
+```  
+
+It is recommended that you run your model with a range of `K` values to check maximum likelihood estimates have converged to a stable value. See [Lele et al. 2007](http://onlinelibrary.wiley.com/doi/10.1111/j.1461-0248.2007.01047.x/full) for more guidance and some advice for reducing computational time. 
+
+We then calculate posterior shrink comparing our Bayesian and maximum likelihood estimates of a parameter. In this case we choose the mean contributions:   
+
+```{r}
+rout <- remix_shrink(gulls_out, gulls_clone, prior_gulls, stat = mean)
+rout
+```  
+
+For all sources the shrink is 1, indicating complete convergence between the mean estimates from Bayesian and maximum likelihood methods. Though not the frequentist standard errors (last column) are broad.  
+
+## Visualising correlations among estimates of source contributions    
+
+In addition to estimating probability distributions for the marginal contribution of each source to a consumer's diet, isotope mixing models also estimate correlations among estimates source contributions. The correlations reflect probabilities about the likely mixes of different sources. 
+
+Visualing correlations among source estimates is a standard step in evaluation of isotope mixing models. `remixsiar` provides two functions for running and principal components analysis to aid interpretation of correlations amon source estimates. PCA is run on the MCMC chains for sources. These functions are simply wrappers for R's `prcomp`, which are designed to work with `simmr_output` objects.  
+
+To run a PCA on a `simmr_output` object: 
+
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 5}
+pc <- remix_pca(gulls_out)
+plot(pc)
+```  
+
+We thus get a standard visualisation about how much variation is explained by the axes. To plot two axes (typically the first two):
+
+```{r, dev='png', dev.args=list(pointsize=8), fig.width = 4}
+remix_pcaplot(pc, axes = c(1,2))
+```  
+
+Interpretation is the same as normal PCA biplots. For instance, here we see that Krill and Shag prey are negatively correlated with each other, indicating that the diet may be composed more of Krill or Shag, but is unlikely to contain high quantities of both. We also see that Krill and Shag are negatively correlated with Mussels.  
+
+
+## Further reading  
+
+`remixsiar` package: 
+[Brown et al. Oecologia in press](https://link.springer.com/article/10.1007%2Fs00442-018-4138-y)
+
+Isotope mixing models: 
+
+The `simmr` package, in R type: `vignette('simmr')`
+
+For information about model cloning (pay-walled):  
+[Lele SR, Dennis B, Lutscher F. Data cloning: easy maximum likelihood estimation for complex ecological models using Bayesian Markov chain Monte Carlo methods. Ecology letters. 2007 Jul 1;10(7):551-63.](http://onlinelibrary.wiley.com/doi/10.1111/j.1461-0248.2007.01047.x/full)  
+Click [here](http://bacbuc.hd.free.fr/WebDAV/data/DOM/StatMeths/Lele-EL2007.pdf) for an open access version.  
+
+To read about the real gulls data-set, which the `remixsiar` gulls data-set is based on (open access): 
+[Masello JF, Wikelski M, Voigt CC, Quillfeldt P. Distribution patterns predict individual specialization in the diet of Dolphin Gulls. PLoS One. 2013 Jul 2;8(7):e67714.](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0067714#s5)

@@ -1,0 +1,10 @@
+bibentry(bibtype = "Article",
+         title = "Quantifying learning in biotracer studies",
+         author = c(person("Christopher", "Brown"),
+                    person("Michael", "Brett"),
+                    person("Fernanda", "Adame"),
+                    person("Ben", "Stewart-Koster"),
+                    person("Stuart", "Bunn")),
+        journal = {"Oecologia"},
+         year = 2018,
+         url = "https://link.springer.com/article/10.1007/s00442-018-4138-y")
