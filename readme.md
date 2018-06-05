@@ -16,6 +16,12 @@ Then you need my BayeSens package:
 Finally, you can install remixsiar:
 `devtools::install_github("cbrown5/remixsiar")`
 
+If `install_github` is causing you strife (like me, maybe its a windows 10 thing?), then try this:
+- click clone or download (scroll up and you will see the green button)
+- download the zip archive and unzip it.
+- Open R
+- Run ` install.packages("C:/Documents/remixsiar", repos = NULL, type = "source")` using whatever local path if appropriate. 
+
 To get help on using the package from within R:
 `library("remixsiar")`
 `vignette("remixsiar")`
