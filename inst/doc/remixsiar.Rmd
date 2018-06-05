@@ -10,13 +10,15 @@ vignette: >
 ---
 
 This package provides helpful functions for evaluating the results of isotope mixing models.  
-Currently it works directly with the package (`simmr`)[]. Many of the functions are not exclusive to `simmr` classes, however a greater profeciency at R programming would be required to use this package with packages other than `simmr`.  
+Currently it works directly with the packages (`simmr`)[https://github.com/andrewcparnell/simmr].  Many of the functions are not exclusive to `simmr` , however a greater profeciency at R programming would be required to use this package with packages other than `simmr`.  
 
-In the future we plan to extend `remixsiar` to other mixing model packages.  
+We also provided very limited support for working with simple models built with  (`mixsiar`)[https://github.com/brianstock/MixSIAR]. See `vignette("remixsiar-mixsiar")` for more guidance. 
 
 ## Getting started  
 
-We recommend you read the `simmr` vignette by typing `vignette('simmr')` before you start with this package. Assuming you are already familiar with `simmr` then you can start with one of our example data-sets, gulls:
+We recommend you read the `simmr` and/or `mixsiar` vignettes by typing `vignette('simmr')` before you start with this package. 
+
+Here we will walk through some examples using `simmr`. 
 
 ```{r, message=FALSE}
 library(remixsiar)
@@ -44,9 +46,9 @@ prior_gulls <- default_prior(gulls_small_in)
 prior_gulls 
 ```  
 
-The gulls data-set is based on data from [Masello et al. 2013](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0067714#s5)
+The gulls data-set is simulations based on data from [Masello et al. 2013](http://journals.plos.org/plosone/article?id=10.1371/journal.pone.0067714#s5)
 
-As you can see it is a series of three means and sds, one for each source.  `simmr` and other newer mixing models use logistic-normal transformations to generate posterior samples of dietary proportions. The priors are specified in terms of normal distributions, which are then transformed to dietary proportions for the puproses of estimating isotope mixing in consumers.  
+As you can see it is a series of three means and sds, one for each source.  `simmr` and other newer mixing models use log-ratio transformations to generate posterior samples of dietary proportions. The priors are specified in terms of normal distributions, which are then transformed to dietary proportions for the puproses of estimating isotope mixing in consumers.  
 
 A user might want to view the (latent) priors in terms of proportions. To view the priors for the krill source type: 
 
@@ -80,7 +82,7 @@ summary(gulls_out)
 
 Check the `simmr` vignette for guidelines on choosing the mcmccontrol parameters.  
 
-### Hellinger distances  
+### Plotting priors and posteriors
 
 We can visually compare prior and posterior distributions like this:  
 
@@ -89,63 +91,31 @@ xgullssmall <- plot_dists(gulls_small_in, gulls_out, prior_gulls, plotdist = T)
 xgullssmall  
 ```  
 
-The Hellinger distance statistic provides a metric that measures the difference between two distributions. Values closer to 1 indicate the posterior is increasingly different from the prior. In this case divergence is only moderate, due the small consumer sample size and the broad sd on the sources. See `?plot_dists` for more information.  
+This will also return the Hellinger distance statistic on the difference between the *marginal* (ie not accounting for correlations in estimates) prior and posterior. The Hellinger distance statistic provides a metric that measures the difference between two distributions. Values closer to 1 indicate the posterior is increasingly different from the prior. In this case divergence is only moderate, due the small consumer sample size and the broad sd on the sources. See `?plot_dists` for more information.  
 
-There are two ways the Hellinger distance can increase - the posterior can get narrower but retain the same mean as the prior. This would indicate we have more information about a consumer's diet, but that the information agrees with the prior.  
+There are two ways the Hellinger distance can increase - the marginal posterior can get narrower but retain the same mean as the prior. This would indicate we have more information about a consumer's diet, but that the information agrees with the prior.  
 
 The Hellinger distance could also increase if the mean of the posterior shifts from the prior, indicating that the data do not agree with the prior for a source.   
 
-### Posterior shrink    
-An alternate method for prior sensitivity analysis is to calculate the 'shrink' of a posterior parameter estimate towards it's maximum likelihood estimate and away from the prior. In contrast to the Hellinger distance, shrink is calculated on a single parameter, rather than across the distribution.  
+## Information measures of difference between priors and posterior 
 
-To obtain maximum likelihood from mixing models we use the data cloning method. See [Lele et al. 2007](http://onlinelibrary.wiley.com/doi/10.1111/j.1461-0248.2007.01047.x/full) for more details on this method.  
+There are a few information measures we describe in the paper for quantifying learning from the data (which will chance the shape of the posterior from the prior). The two statistics used are the Hellinger distance and the Kullback-Leibler divergence. For each of these we can calculate them on the marginal densities of each source, or across the full conditional posterior (which accounts for changes in the correlations between the contributions of sources). See the paper for more details. 
 
-The key point is to choose an adequately large cloning number, `K`, where larger values of `K` will give more accurate maximum likelihood estimates, but require more computational time. 
-
-The code below will re-run our gulls `simmr` model with a cloned data-frame (this may take awhile):  
-
-```{r, eval=FALSE}
-K <- 80
-gulls_clone <- simmr_clone(gulls_small_in, K = K, mcmc.control = mcmccontrol, prior.control = prior_gulls)  
-```  
-
-A `simmr` run on the cloned gulls data is also available directly in the `remixsiar` package for convenience:  
-
+The marginal Hellinger distances (one for each source)
 ```{r}
-data(gulls_clone)
+calchell(list(gulls_small_in, gulls_out))
 ```  
 
-It is recommended that you run your model with a range of `K` values to check maximum likelihood estimates have converged to a stable value. See [Lele et al. 2007](http://onlinelibrary.wiley.com/doi/10.1111/j.1461-0248.2007.01047.x/full) for more guidance and some advice for reducing computational time. 
-
-We then calculate posterior shrink comparing our Bayesian and maximum likelihood estimates of a parameter. In this case we choose the mean contributions:   
-
+The marginal Kullback-Leibler divergences (in bits): 
 ```{r}
-rout <- remix_shrink(gulls_out, gulls_clone, prior_gulls, stat = mean)
-rout
+calckl(list(gulls_small_in, gulls_out))
 ```  
 
-For all sources the shrink is 1, indicating complete convergence between the mean estimates from Bayesian and maximum likelihood methods. Though not the frequentist standard errors (last column) are broad.  
+The global Hellinger distance and Kullback-Leibler divergence (one value for each statistic): 
 
-## Visualising correlations among estimates of source contributions    
-
-In addition to estimating probability distributions for the marginal contribution of each source to a consumer's diet, isotope mixing models also estimate correlations among estimates source contributions. The correlations reflect probabilities about the likely mixes of different sources. 
-
-Visualing correlations among source estimates is a standard step in evaluation of isotope mixing models. `remixsiar` provides two functions for running and principal components analysis to aid interpretation of correlations amon source estimates. PCA is run on the MCMC chains for sources. These functions are simply wrappers for R's `prcomp`, which are designed to work with `simmr_output` objects.  
-
-To run a PCA on a `simmr_output` object: 
-
-```{r, dev='png', dev.args=list(pointsize=8), fig.width = 5}
-pc <- remix_pca(gulls_out)
-plot(pc)
-```  
-
-We thus get a standard visualisation about how much variation is explained by the axes. To plot two axes (typically the first two):
-
-```{r, dev='png', dev.args=list(pointsize=8), fig.width = 4}
-remix_pcaplot(pc, axes = c(1,2))
-```  
-
-Interpretation is the same as normal PCA biplots. For instance, here we see that Krill and Shag prey are negatively correlated with each other, indicating that the diet may be composed more of Krill or Shag, but is unlikely to contain high quantities of both. We also see that Krill and Shag are negatively correlated with Mussels.  
+```{r message=FALSE, warning=FALSE}
+calcmkl(list(gulls_small_in, gulls_out))
+```
 
 
 ## Evaluating models for bias and precision  
@@ -178,7 +148,7 @@ We want to see that residuals are evenly, and normally, distributed about their 
 
 We can run a (Bayesian) t-test (using the package `BEST`) to obtain the probability that the mean of the residuals differs from zero: 
 
-```{r, warning=FALSE, message=FALSE}
+```{r, warning=FALSE, message=FALSE, eval = FALSE}
 library(BEST)
 apply(xresid$resid[[1]], 2, BESTmcmc)  
 ```  
@@ -188,7 +158,7 @@ In this case the 95% credibility intervals on the means for both tracers overlap
 ## Further reading  
 
 `remixsiar` package: 
-[Brown et al. submitted]()
+[Brown et al. In press Oecologia](https://link.springer.com/article/10.1007%2Fs00442-018-4138-y)
 
 Isotope mixing models: 
 
@@ -196,10 +166,6 @@ The `simmr` package, in R type: `vignette('simmr')`
 
 For information about prior sensitivity analysis see (pay-walled):  
 [Berger JO (1985) Statistical Decision Theory and Bayesian Analysis, Second Edition, Springer, New York.](http://www.springer.com/in/book/9780387960982)
-
-For information about model cloning (pay-walled):  
-[Lele SR, Dennis B, Lutscher F. Data cloning: easy maximum likelihood estimation for complex ecological models using Bayesian Markov chain Monte Carlo methods. Ecology letters. 2007 Jul 1;10(7):551-63.](http://onlinelibrary.wiley.com/doi/10.1111/j.1461-0248.2007.01047.x/full)  
-Click [here](http://bacbuc.hd.free.fr/WebDAV/data/DOM/StatMeths/Lele-EL2007.pdf) for an open access versio?n.  
 
 General information about model evaluation (pay-walled):  
 [Bolker BM. Ecological models and data in R. Princeton University Press; 2008 Jul 21.](http://press.princeton.edu/titles/8709.html)

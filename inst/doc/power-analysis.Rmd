@@ -1,0 +1,117 @@
+---
+title: "Power analysis with Bayesian mixing models"
+author: "CJ Brown"
+date: "`r Sys.Date()`"
+output: rmarkdown::html_vignette
+vignette: >
+  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+`remixsiar` can be used to implement a type of broad-sense power analysis for Bayesian mixing models.
+
+Here we demonstrate how it could be used to decide on a sample size for consumer isotope sampling.
+
+```{r, message=FALSE}
+library(remixsiar)
+```
+
+## Simulating isotope data  
+
+Let's create a simple mixing polygon, based on the work by Masello et al. on gulls. We will just specify means and SDs for each 
+
+```{r}
+tracer_means <- c(-17, 12.75)
+tracer_sds <- c(0.35, 1.1)
+smeans <- cbind(cmean = c(-19.2, -15.72, -17.18), nmean = c(9.54, 11.24, 15.34))
+ssds <- cbind(c(0.41, 1.02, 1.61), c(1.15, 1.64, 2.15))
+snames <- c("Krill", "Mussels", "Shag_prey")
+``` 
+
+
+Now we can use `simmr_fitsim` to sample `n` samples from the consumer means and SDs and fit a `simmr` model using the source means and SDs. 
+
+
+```{r message = FALSE}
+mod1 <- simmr_fitsims(n = 5, tracer_means = tracer_means,tracer_sds = tracer_sds,
+      snames = snames, smeans = smeans, ssds = ssds, seed = 42)
+```
+`simmr_fitsims` stores both the input and output for simmr. Let's plot the isospace plot (input) and the posterior diet contributions (output)
+```{r message = FALSE}
+plot(mod1$dat_in)
+plot(mod1$dat_out, type = "boxplot")
+```  
+
+ Calculating the information gain statistics is now straightforward: 
+
+```{r, eval = FALSE}
+calckl(mod1)
+calchell(mod1)
+```
+
+Note that we are assuming that the default priors have been used here (which they have).  
+
+## Varying sample size 
+
+To do a power analysis, we would like to know how the information gain changes as we increase the number of consumer samples. We simply need to loop over `simmr_fitsims` and vary the input sample size.  To do this, first create a data-frame of sample sizes and random seeds (so results are repeatable). 
+
+```{r}
+nvals <- c(5, 10, 20, 40, 80)
+seeds <- seq(10, 60, by = 10)
+```
+
+We will also specify the mcmc control parameters
+
+```{r}
+mcmc.control <-  list(iter = 10000, burn = 2000, thin = 10, n.chain = 2)
+prior.control <- NULL
+```
+Note that you should use more iterations and chains, but we use just a few hear to speed simulation.  
+
+Now replicate every seed for every sample size and stick that dataframe together with the input to `simmr_fitsims`  
+
+```{r}
+dfin <- expand.grid(n = nvals, seed = seeds)
+df <- c(as.list(dfin),
+list(tracer_means = list(tracer_means), tracer_sds = list(tracer_sds),
+snames = list(snames), smeans = list(smeans), ssds = list(ssds),
+mcmc.control = list(mcmc.control), prior.control = list(NULL)))
+```
+
+We can now loop over all sample sizes and randoms seeds using `pmap` from the `purrr` package, but you could also use a `for` loop to achieve the same effect 
+
+```{r message = FALSE}
+library(purrr)
+system.time(gulls_multirun <- pmap(df, simmr_fitsims))
+```
+
+Once that has fit (may take a while for larger datasets) we need to calculate the Hellinger distance and Kullback-Leibler divergences for each model fit, then stick the results back onto our dataframe of inputs:  
+
+```{r}
+rout <- map(1:length(gulls_multirun), ~calchell(gulls_multirun[[.x]]))
+routkl <- map(1:length(gulls_multirun), ~calckl(gulls_multirun[[.x]]))
+rdf <- do.call(rbind, rout) %>% data.frame() %>%
+  setNames(paste0('hd', snames)) %>%
+  cbind(dfin)
+rdf2 <- do.call(rbind, rout) %>% data.frame() %>%
+  setNames(paste0('kl', snames)) %>%
+  cbind(rdf)
+```
+
+Let's plot the result now: 
+
+```{r}
+library(ggplot2)
+
+ggplot(rdf, aes(x = n, y = hdKrill)) + geom_point() + 
+    stat_smooth() + ylab("Hellinger distance")
+
+ggplot(rdf2, aes(x = n, y = klMussels)) + geom_point() + 
+  stat_smooth() + ylab("Kullback-Leibler divergence")
+
+```
+
+So both information gain metrics increase with sample size, but there is not much benefit to 80 consumer samples over having only 40, whereas 5 samples gives us very weak inference compared to 20. 
+
+
