@@ -2,6 +2,9 @@
 
  CJ Brown 2018-04-16
 
+I am no longer maintaining this package. So it is not up to date with developments in simmr and mixsiar. However, my package [`BayeSens`](https://github.com/cbrown5/BayeSens) can be used for the same purpose and a vignette is included with BayeSens explaining how to calculate information criteria. 
+
+
 
  This is supplementary material prepared in support of the paper:
  ["Quantifying learning in biotracer studies"
@@ -20,7 +23,7 @@ If `install_github` is causing you strife (like me, maybe its a windows 10 thing
 - click clone or download (scroll up and you will see the green button)
 - download the zip archive and unzip it.
 - Open R
-- Run ` install.packages("C:/Documents/remixsiar", repos = NULL, type = "source")` using whatever local path if appropriate. 
+- Run ` install.packages("C:/Documents/remixsiar", repos = NULL, type = "source")` using whatever local path is appropriate.
 
 To get help on using the package from within R:
 `library("remixsiar")`

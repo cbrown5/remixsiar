@@ -5,7 +5,7 @@
 #' power analysis to ask how many samples are required to obtain a specific
 #' confidence about an animal's diet.
 #'
-#' @Usage mixsiar_fitsims <- function(n, tracer_means, tracer_sds,
+#' @usage mixsiar_fitsims <- function(n, tracer_means, tracer_sds,
 #'    snames, modelfile, mixsiardat, sdmult = 1, seed = 42,
 #'    mcmc.control = list(iter = 50000, burn = 2000, thin = 10, n.chain = 4),
 #'    prior.control = NULL)
